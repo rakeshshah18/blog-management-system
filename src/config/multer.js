@@ -1,20 +1,29 @@
 const multer = require('multer');
 
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, '../resources');
+        cb(null, './src/resources');
     },
     filename: (req, file, cb) => {
-        console.log("file form multer. ",file)
-        const fileName = file.fieldname
-
+        const fileName = file.originalname
+        console.log("file form multer. ",fileName)
+        // fileName = req.body.image 
         cb(null, fileName);
     },
 });
 
+// function uploadFile(req, file){
+//     const fileName = file.originalname
+//     return fileName;
+// }
+
 
 const upload = multer({
-    storage: storage
+    storage: storage,
+    // uploadFile: uploadFile
 });
 
-module.exports = upload;
+console.log("Details: ",upload)
+
+module.exports = upload ;

@@ -19,7 +19,7 @@ const getUserBlog = async (req, res) => {
 
 const validateNewBlogSchema = Joi.object({
     title: Joi.string().min(3).max(50).required(),
-    content: Joi.string().min(10).max(150).required(),
+    content: Joi.string().min(5).max(150).required(),
     image: Joi.string(),
     user: Joi.string().required(),
 });
@@ -32,25 +32,31 @@ const postBlog = async (req, res) => {
         // console.log("User ID from blogRoutes:", userId);
 
         // Joi validation
-        const { error } = validateNewBlogSchema.validate(req.body);
+        const { error } = validateNewBlogSchema.validate({
+            title,
+            content,
+            // image,
+            image: req.file ? req.file.originalname : undefined,
+            user
+        });
         if (error) {
             return res.status(400).json({
                 message: "Error in Joi validation",
-                // details: error.details,
+                details: error.details[0],
             });
         }
 
-        const user1 = await User.findById(req.body.user);
-        console.log("User id of existing user: ",user1)
-        if(!user1){
-            return res.status(404).json({message: "User not found"})
+        const user1 = await User.findById(user);
+        console.log("User id of existing user: ", user1)
+        if (!user1) {
+            return res.status(404).json({ message: "User not found" })
         }
         const newBlog = new Blog({
             title,
             content,
-            image,
-            // image: req.file ? req.file.filename : undefined,
-            user: user1,
+            // image,
+            image: req.file ? req.file.originalname : undefined,
+            user,
         });
 
         await newBlog.save();
