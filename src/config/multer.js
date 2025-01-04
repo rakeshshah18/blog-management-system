@@ -13,17 +13,12 @@ const storage = multer.diskStorage({
     },
 });
 
-// function uploadFile(req, file){
-//     const fileName = file.originalname
-//     return fileName;
-// }
-
 
 const upload = multer({
     storage: storage,
     // uploadFile: uploadFile
 });
 
-console.log("Details: ",upload)
+// console.log("Details: ",upload)
 
 module.exports = upload ;

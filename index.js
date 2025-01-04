@@ -1,14 +1,15 @@
 const express = require("express");
-const mongoose = require("mongoose");
+// const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const connection_DB = require("./src/config/db");
 const path = require("path");
 const routes = require("./src/routes/index");
+const { PORT } = require("./src/config/config")
 
 const app = express();
 app.use(express.json());
 
-const PORT = 4000;
+// const PORT = 4000;
 app.use(express.urlencoded({ extended: true }));
 //database connection
 connection_DB();
