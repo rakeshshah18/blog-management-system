@@ -1,4 +1,4 @@
-const express = require("express");
+// const express = require("express");
 const Blog = require("../models/blogModel");
 const Joi = require("joi");
 const User = require("../models/userModel")
@@ -7,9 +7,15 @@ const User = require("../models/userModel")
 //get all blogs
 const getUserBlog = async (req, res) => {
     try {
-        
-        const blogs = await Blog.find(User);
-        res.json(blogs);
+        const userId = req.userId;
+        console.log("User ID from Middleware:", req.userId);
+        const blogs = await Blog.find({User: userId});
+        // res.json(blogs);
+        res.status(200).json({
+            status: "success",
+            message: "Blog of this user",
+            data: blogs,
+        })
     } catch (error) {
         res.status(500).json({
             status: "error",
@@ -23,14 +29,16 @@ const validateNewBlogSchema = Joi.object({
     title: Joi.string().min(3).max(50).required(),
     content: Joi.string().min(5).max(150).required(),
     image: Joi.string(),
-    user: Joi.string().required(),
+    // user: Joi.string().required(),
 });
 
 //post a new blog
 const postBlog = async (req, res) => {
     try {
-        const { title, content, image, user } = req.body;
-        const userId = req.user.userId
+        const { title, content } = req.body;
+        const userId = req.userId
+
+        console.log("User id from JWT ", userId);
 
         // Joi validation
         const { error } = validateNewBlogSchema.validate({
@@ -38,21 +46,20 @@ const postBlog = async (req, res) => {
             content,
             // image,
             image: req.file ? req.file.originalname : undefined,
-            user
+            // user
         });
         if (error) {
             return res.status(400).json({
                 status: "error",
                 message: "Error in Joi validation",
-                // details: error.details[0],
+                details: error.details[0],
             });
         }
 
-        const user1 = await User.findById(user);
-        console.log("User id of existing user: ", user1)
+        const user1 = await User.findById(userId);
         if (!user1) {
             return res.status(404).json({
-                status: "success",
+                status: "Not Found",
                 message: "User not found"
             })
         }
@@ -61,11 +68,10 @@ const postBlog = async (req, res) => {
             content,
             // image,
             image: req.file ? req.file.originalname : undefined,
-            user,
+            user: userId,
         });
 
         const data = await newBlog.save();
-
         res.status(201).json({
             status: "success",
             message: 'Enjoy! New Blog has been created.',

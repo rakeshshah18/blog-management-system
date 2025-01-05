@@ -1,4 +1,4 @@
-const express = require("express");
+// const express = require("express");
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require("../config/config")
@@ -6,15 +6,21 @@ const { JWT_SECRET } = require("../config/config")
 
 const createNewUser = async (req, res) => {
     try {
-        const newUser = new User(req.body);
+        const { userName, email, password, age } = req.body;
+        const newUser = new User({
+            userName,
+            email,
+            password,
+            age
+            
+        });
         const saveUser = await newUser.save();
-
         //token generation
         const token1 = jwt.sign({ 
-            id: saveUser._id 
+            id: saveUser._id.toString() 
         }, 
         JWT_SECRET || "secret-keys", {
-            expiresIn: '7d'
+            expiresIn: '24h'
         });
 
         res.status(201).json({
@@ -35,7 +41,7 @@ const createNewUser = async (req, res) => {
 const getExistingUsers = async (req, res) => {
     try {
         const userId = req.userId;
-        const users = await User.find({ _id: userId });
+        const users = await User.find({  userId });
         res.status(200).json({
             status: "success",
             message: "Registered Users.",

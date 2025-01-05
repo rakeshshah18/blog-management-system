@@ -11,16 +11,20 @@ const verifyJwtToken = (req, res, next) => {
             message: 'User is Unauthorized.' 
         });
     }
+    // try {
+
+    // }catch(error){}
 
     try {
         const verifying = jwt.verify(token, JWT_SECRET);
         console.log(verifying)
-        req.userId = verifying.id;
+        req.userId = verifying._id;
+        // req.params.user = verifying.id;
 
         next();
     } catch (error) {
         console.error("Token Verification Error:", error.message);
-        return res.status(400).json({ 
+        return res.status(403).json({ 
             status: "error",
             message: "Token is invallid." 
         });
