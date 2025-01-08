@@ -13,7 +13,14 @@ router.post(
     verifyUser,
     upload.single("image"),
     blogController.postBlog
-
 );
+
+router.put("/:blogId",
+    verifyJwtToken,
+    upload.single("image"),
+    blogController.updateBlog
+)
+
+router.delete("/delete", verifyJwtToken, blogController.deleteBlog);
 
 module.exports = router;

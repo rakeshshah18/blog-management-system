@@ -55,7 +55,105 @@ const getExistingUsers = async (req, res) => {
     }
 }
 
-module.exports = { createNewUser, getExistingUsers };
+const loginUser = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Find the user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                status: "error",
+                message: "Email not found.",
+            });
+        }
+
+        // Compare password
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({
+                status: "error",
+                message: "Invalid credentials.",
+            });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: user._id },
+            JWT_SECRET || "secret-key",
+            { expiresIn: '24h' }
+        );
+
+        res.status(200).json({
+            status: "success",
+            message: "Login successful.",
+            data: { token },
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "error",
+            message: error.message,
+        });
+    }
+};
+
+const updateUser = async (req, res) => {
+    try {
+        const userId = req.query.userId;
+        // const userId = "677d6daabad994aa4c835702";
+        const { userName, email, password, age } = req.body;
+        const user = await User.findByIdAndUpdate(userId);
+        if(!user) {
+            return res.status(404).json({
+                status: "error",
+                message: "User not found.",
+            });
+        }
+        if (userName) user.userName = userName;
+        if (email) user.email = email;
+        if (age) user.age = age;
+        if (password) {
+            const bcrypt = require("bcrypt");
+            user.password = await bcrypt.hash(password, 10);
+        }
+        const updatedUser = await user.save();
+        res.status(200).json({
+            status: "success",
+            message: "User updated successfully.",
+            data: updatedUser,
+        });
+    }catch(error){
+        res.status(500).json({
+            status: "error",
+            message: error.message,
+        });
+    }
+}
+
+const deleteUser = async (req, res) => {
+    try {
+        const userId = req.query.userId; 
+
+        const user = await User.findByIdAndDelete(userId);
+        if (!user) {
+            return res.status(404).json({
+                status: "error",
+                message: "User not found",
+            });
+        }
+
+        res.status(200).json({
+            status: "success",
+            message: "User deleted successfully",
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "error",
+            message: "Error while deleting user",
+        });
+    }
+};
+
+module.exports = { createNewUser, getExistingUsers, loginUser, updateUser, deleteUser };
 
 
-// {status:"success",message:"Success Message", data:users}
