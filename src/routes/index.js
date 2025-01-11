@@ -11,5 +11,7 @@ router.use("/delete", userRoutes)
 router.use("/blogs", blogsRoutes);
 router.use("/update", blogsRoutes)
 router.use("/delete", blogsRoutes)
+router.use("forgotPassword", userRoutes)
+router.use("/resetPassword", userRoutes)
 
 module.exports = router;

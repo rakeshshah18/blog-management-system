@@ -2,7 +2,8 @@
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require("../config/config")
-
+const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 
 const createNewUser = async (req, res) => {
     try {
@@ -154,6 +155,98 @@ const deleteUser = async (req, res) => {
     }
 };
 
-module.exports = { createNewUser, getExistingUsers, loginUser, updateUser, deleteUser };
+// forgot password
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                status: "error",
+                message: "User not found",
+            });
+        }
+
+        // Generating  reset token 
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+        // token and expiration
+        user.resetPasswordToken = hashedToken;
+        const expireTime = Date.now() + 30 * 60 * 1000;
+        user.resetPasswordTokenExpire = expireTime;
+        await user.save();
+
+        console.log("Forgot Password Debug:", {
+            resetToken,
+            hashedToken,
+            expireTime: new Date(expireTime),
+        });
+
+        res.status(200).json({
+            status: "success",
+            message: "Reset password token sent to your email",
+            data: { resetToken },
+        });
+    } catch (error) {
+        console.error("Forgot Password Error:", error);
+        res.status(500).json({
+            status: "error",
+            message: "Internal server issue.",
+        });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+        const user = await User.findOne({
+            resetPasswordToken: hashedToken,
+            resetPasswordTokenExpire: { $gt: Date.now() },
+        });
+
+        if (!user) {
+            console.error("Invalid or Token is Expired");
+            return res.status(400).json({
+                status: "error",
+                message: "Invalid or expired token",
+            });
+        }
+
+        // Update password and clear token fields
+        user.password = await bcrypt.hash(newPassword, 12);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordTokenExpire = undefined;
+        await user.save();
+
+        console.log("Done! password is reset for user:", user._id);
+
+        res.status(200).json({
+            status: "success",
+            message: "Password reset successfully",
+        });
+    } catch (error) {
+        console.error("Reset Password Error:", error);
+        res.status(500).json({
+            status: "error",
+            message: "Internal server issue.",
+        });
+    }
+};
+
+
+
+
+module.exports = { 
+    createNewUser, 
+    getExistingUsers, 
+    loginUser, 
+    updateUser, 
+    deleteUser, 
+    forgotPassword, 
+    resetPassword 
+};
 
 
