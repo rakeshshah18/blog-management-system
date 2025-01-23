@@ -17,9 +17,14 @@ const verifyJwtToken = (req, res, next) => {
 
     try {
         const verifying = jwt.verify(token, JWT_SECRET);
-        console.log(verifying)
+        // console.log(verifying)
         req.userId = verifying._id;
         // req.params.user = verifying.id;
+        // return res.status(200).json({
+        //     status: "success",
+        //     message: "logged in user",
+        //     data: users.user 
+        // })
 
         next();
     } catch (error) {

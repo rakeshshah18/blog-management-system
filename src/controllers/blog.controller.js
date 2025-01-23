@@ -1,6 +1,6 @@
 const express = require("express");
 const Blog = require("../models/blogModel");
-const { validateBlogUser } = require("../validation/validateBlogUser");
+const { validateBlogUser } = require("../utils/validateBlogUser");
 const User = require("../models/userModel");
 
 //get all blogs
