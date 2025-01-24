@@ -4,18 +4,40 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require("../config/config")
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const { sendOtpEmail } = require('../utils/mailSender');
 
 const createNewUser = async (req, res) => {
     try {
         const { userName, email, password, age } = req.body;
+
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({
+                status: "Error",
+                message: "Email already exists"
+            });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+        const hashedPassword = await bcrypt.hash(password, 12);
         const newUser = new User({
             userName,
             email,
-            password,
-            age
-
+            password: hashedPassword,
+            age,
+            otp,
+            otpExpire
         });
+
+
         const saveUser = await newUser.save();
+        await sendOtpEmail(email, otp);
+        console.log("Registering user:", req.body);
+        console.log("OTP:", otp);
+        console.log("Hashed password:", hashedPassword);
+
         //token generation
         const token1 = jwt.sign({
             id: saveUser._id.toString()
@@ -33,7 +55,7 @@ const createNewUser = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             status: "error",
-            message: error.message
+            message: "Error while registering the user."
         });
     }
 }

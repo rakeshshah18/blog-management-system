@@ -2,12 +2,12 @@ const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller");
 const verifyJwtToken = require("../middleware/jwt");
-// const isLogIn = require("../controllers/user.controller/isLogIn")
-// const forgotPassword = require("../controllers/user.controller");
-// const resetPassword = require("../controllers/user.controller");
+const verifyOtp  = require('../middleware/otp')
+
 
 // creating a new user
 router.post("/register", userController.createNewUser);
+router.post("/verify-otp", verifyOtp);
 router.get("/", verifyJwtToken,  userController.getExistingUsers);
 router.post("/login", userController.isLogIn);
 router.put("/update", verifyJwtToken, userController.updateUser);
