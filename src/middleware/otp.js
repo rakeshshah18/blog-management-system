@@ -1,7 +1,10 @@
 const User = require('../models/userModel')
+// const crypto = require('crypto')
+// const jwt = require('jsonwebtoken')
+// const { JWT_SECRET } = require('../config')
 
 
-const verifyOtp = async (req, res) => {
+const verifyOtp = async (req, res, next) => {
     try {
         const { email, otp} = req.body;
         const user = await User.findOne({ email });
@@ -28,6 +31,7 @@ const verifyOtp = async (req, res) => {
             status: "success",
             message: "Your account is verified successfully."
         });
+        next();
     }catch(error) {
         console.error(error);
         res.status(500).json({

@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require("../config/config")
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-const { sendOtpEmail } = require('../utils/mailSender');
+const  {sendOtpEmail}  = require('../utils/mailSender');
+const  {sendLoginOtp}  = require('../utils/mailSender');
 
 const createNewUser = async (req, res) => {
     try {
@@ -33,19 +34,26 @@ const createNewUser = async (req, res) => {
 
 
         const saveUser = await newUser.save();
-        await sendOtpEmail(email, otp);
-        console.log("Registering user:", req.body);
-        console.log("OTP:", otp);
-        console.log("Hashed password:", hashedPassword);
+        console.log("User saved successfully:", saveUser);
+
+
+        try {
+            await sendOtpEmail(email, otp);
+        } catch (emailError) {
+            console.error("Error sending OTP email:", emailError.message);
+        }
 
         //token generation
-        const token1 = jwt.sign({
-            id: saveUser._id.toString()
-        },
-            JWT_SECRET || "secret-keys", {
-            expiresIn: '24h'
-        });
-
+        const token1 = jwt.sign(
+            {
+                id: saveUser._id.toString()
+            },
+            JWT_SECRET || "secret-keys",
+            {
+                expiresIn: '24h'
+            }
+        );
+        console.log("Token generated successfully:", token1);
         res.status(201).json({
             status: "success",
             message: "User is now register.",
@@ -61,41 +69,41 @@ const createNewUser = async (req, res) => {
 }
 
 
-const isLogIn = async (req, res) => {
+const logIn = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email } = req.body;
 
-        // Find the user by email
+        // Check if the user exists
         const user = await User.findOne({ email });
-
         if (!user) {
             return res.status(404).json({
                 status: "error",
-                message: "Email not found.",
+                message: "Email not registered.",
             });
         }
 
-        // Compare password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({
+        // Generate a 6-digit OTP for login
+        const loginOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Save OTP and expiration time in the database
+        user.loginOtp = loginOtp;
+        user.loginOtpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+        await user.save();
+
+        // Send the OTP email
+        try {
+            await sendLoginOtp(email, loginOtp);
+            res.status(200).json({
+                status: "success",
+                message: "Login OTP sent successfully.",
+            });
+        } catch (error) {
+            console.error("Error sending login OTP:", error);
+            return res.status(500).json({
                 status: "error",
-                message: "Invalid credentials.",
+                message: "Could not send OTP. Please try again.",
             });
         }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { id: user._id },
-            JWT_SECRET || "secret-key",
-            { expiresIn: '24h' }
-        );
-
-        res.status(200).json({
-            status: "success",
-            message: "Login successful.",
-            data: { token },
-        });
     } catch (error) {
         res.status(500).json({
             status: "error",
@@ -104,11 +112,13 @@ const isLogIn = async (req, res) => {
     }
 };
 
+
+
 //get users
 const getExistingUsers = async (req, res) => {
     try {
         const userId = req.userId;
-        if (!isLogIn) {
+        if (!logIn) {
             // const users = await User.findOne({ userId });
             return res.status(404).json({
                 status: "Error",
@@ -116,7 +126,7 @@ const getExistingUsers = async (req, res) => {
             });
 
         }
-        if (isLogIn) {
+        if (logIn) {
             const users = await User.findOne({ userId });
             res.status(200).json({
                 status: "success",
@@ -281,7 +291,7 @@ const resetPassword = async (req, res) => {
 module.exports = {
     createNewUser,
     getExistingUsers,
-    isLogIn,
+    logIn,
     updateUser,
     deleteUser,
     forgotPassword,
