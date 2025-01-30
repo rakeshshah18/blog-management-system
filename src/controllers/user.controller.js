@@ -1,18 +1,112 @@
 // const express = require("express");
 const User = require('../models/userModel');
+const { generateOtp, verifyOtp } = require('../models/otpModel');
 const jwt = require('jsonwebtoken');
+const { sendOtpEmail } = require('../utils/mailSender');
+const bcrypt = require("bcrypt");
 const { JWT_SECRET } = require("../config/config")
 const crypto = require("crypto");
-const bcrypt = require("bcrypt");
-const  {sendOtpEmail}  = require('../utils/mailSender');
-const  {sendLoginOtp}  = require('../utils/mailSender');
+
+// Verify Registration OTP
+const verifyRegistrationOtp = async (req, res) => {
+    try {
+        const { otp, email } = req.body;
+        if (await verifyOtp(email, otp, 'registration')) {
+            await User.findOneAndUpdate({ email }, { isVerified: true }, { new: true });
+
+            // Generate token
+            const token1 = jwt.sign(
+                { id: email },
+                JWT_SECRET || "secret-keys",
+                { expiresIn: '24h' }
+            );
+
+            return res.status(200).json({
+                status: "Success",
+                message: "Registration OTP verified successfully",
+                token: { token1 }
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: "Error",
+            message: "Internal Server Error",
+        });
+    }
+};
+
+
+// verify login otp
+const verifyLoginOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (await verifyOtp(email, otp, 'login')) {
+            const token = jwt.sign({ id: email },
+                "secret-key",
+                { expiresIn: '24h' });
+            return res.status(200).json({
+                status: "success",
+                message: "Login successful",
+                token: { token }
+            });
+        }
+        res.status(400).json({
+            status: "error",
+            message: "Invalid or expired OTP",
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "error",
+            message: "Error while verifying OTP",
+        });
+    }
+};
+
+const verifyFPOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        console.log(`Received Forgot Password OTP verification request for: ${email}, OTP: ${otp}`);
+
+        if (!await verifyOtp(email, otp, 'forgotPassword')) {
+            console.error("Invalid or expired OTP.");
+            return res.status(400).json({
+                status: "error",
+                message: "Invalid or expired OTP",
+            });
+        }
+
+        console.log("OTP verified. Generating reset token...");
+        // Generate reset token
+        const user = await User.findOne({ email });
+        const resetToken = crypto.randomBytes(32).toString("hex");
+        const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+        // Store token and expiration
+        const resetPssToken = user.resetPasswordToken = hashedToken;
+        user.resetPasswordTokenExpire = Date.now() + 30 * 60 * 1000; // 30 min expiry
+        await user.save();
+
+        return res.status(200).json({
+            status: "success",
+            message: "FP OTP verified successfully",
+            data: { resetPssToken }
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            status: "error",
+            message: "Error while verifying OTP",
+        });
+    }
+};
+
+
 
 const createNewUser = async (req, res) => {
     try {
         const { userName, email, password, age } = req.body;
-
-
         const existingUser = await User.findOne({ email });
+
         if (existingUser) {
             return res.status(400).json({
                 status: "Error",
@@ -20,55 +114,41 @@ const createNewUser = async (req, res) => {
             });
         }
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes from now
         const hashedPassword = await bcrypt.hash(password, 12);
         const newUser = new User({
             userName,
             email,
             password: hashedPassword,
             age,
-            otp,
-            otpExpire
         });
-
-
         const saveUser = await newUser.save();
-        console.log("User saved successfully:", saveUser);
+        // console.log("User saved successfully:", saveUser);
 
-
-        try {
-            await sendOtpEmail(email, otp);
-        } catch (emailError) {
-            console.error("Error sending OTP email:", emailError.message);
-        }
-
-        //token generation
-        const token1 = jwt.sign(
-            {
-                id: saveUser._id.toString()
-            },
-            JWT_SECRET || "secret-keys",
-            {
-                expiresIn: '24h'
-            }
-        );
-        console.log("Token generated successfully:", token1);
+        const otp = await generateOtp(email, 'registration');
+        await sendOtpEmail(email, otp);
         res.status(201).json({
-            status: "success",
-            message: "User is now register.",
-            // user: saveUser,
-            data: { token: token1 }
+            status: "Success",
+            message: "User registered. OTP sent to email.",
         });
     } catch (error) {
         res.status(500).json({
-            status: "error",
-            message: "Error while registering the user."
+            status: "Error",
+            message: "Failed to generate register otp",
         });
     }
+
+
+
+    // console.log("Token generated successfully:", token1);
+    // res.status(201).json({
+    //     status: "Success",
+    //     message: "User registered successfully",
+    //     token: { token1 }
+    // })
+
 }
 
-
+// login and send otp
 const logIn = async (req, res) => {
     try {
         const { email } = req.body;
@@ -83,27 +163,12 @@ const logIn = async (req, res) => {
         }
 
         // Generate a 6-digit OTP for login
-        const loginOtp = Math.floor(100000 + Math.random() * 900000).toString();
-
-        // Save OTP and expiration time in the database
-        user.loginOtp = loginOtp;
-        user.loginOtpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-        await user.save();
-
-        // Send the OTP email
-        try {
-            await sendLoginOtp(email, loginOtp);
-            res.status(200).json({
-                status: "success",
-                message: "Login OTP sent successfully.",
-            });
-        } catch (error) {
-            console.error("Error sending login OTP:", error);
-            return res.status(500).json({
-                status: "error",
-                message: "Could not send OTP. Please try again.",
-            });
-        }
+        const otp = await generateOtp(email, 'login');
+        await sendOtpEmail(email, otp);
+        res.status(200).json({
+            status: "success",
+            message: "Login OTP sent to your email.",
+        });
     } catch (error) {
         res.status(500).json({
             status: "error",
@@ -204,7 +269,6 @@ const deleteUser = async (req, res) => {
     }
 };
 
-// forgot password
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -216,43 +280,42 @@ const forgotPassword = async (req, res) => {
             });
         }
 
-        // Generating  reset token 
-        const resetToken = crypto.randomBytes(32).toString("hex");
-        const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+        // Send OTP email
+        try {
+            const otp = await generateOtp(email, 'forgotPassword');
+            await sendOtpEmail(email, otp);
+        } catch (error) {
+            console.error("Error sending OTP email:", error.message);
+            return res.status(500).json({
+                status: "error",
+                message: "Failed to send OTP email",
+            });
+        }
 
-        // token and expiration
-        user.resetPasswordToken = hashedToken;
-        const expireTime = Date.now() + 30 * 60 * 1000;
-        user.resetPasswordTokenExpire = expireTime;
-        await user.save();
-
-        console.log("Forgot Password Debug:", {
-            resetToken,
-            hashedToken,
-            expireTime: new Date(expireTime),
-        });
-
-        res.status(200).json({
+        // Send a single response
+        return res.status(200).json({
             status: "success",
-            message: "Reset password token sent to your email",
-            data: { resetToken },
+            message: "Forgot password OTP sent to your email",
+            // data: { resetToken },
         });
+
     } catch (error) {
         console.error("Forgot Password Error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             status: "error",
             message: "Internal server issue.",
         });
     }
 };
 
+
 const resetPassword = async (req, res) => {
     try {
         const { token, newPassword } = req.body;
-        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+        // const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
         const user = await User.findOne({
-            resetPasswordToken: hashedToken,
+            resetPasswordToken: token,
             resetPasswordTokenExpire: { $gt: Date.now() },
         });
 
@@ -266,11 +329,14 @@ const resetPassword = async (req, res) => {
 
         // Update password and clear token fields
         user.password = await bcrypt.hash(newPassword, 12);
-        user.resetPasswordToken = undefined;
-        user.resetPasswordTokenExpire = undefined;
+        // user.resetPasswordToken = undefined;
+        // user.resetPasswordTokenExpire = undefined;
+        // user.fpOtp = undefined;
+        // user.isVerifiedFPOtp = true;
+        // user.fpOtpExpire = undefined;
         await user.save();
 
-        console.log("Done! password is reset for user:", user._id);
+        // console.log("Done! password is reset for user:", user._id);
 
         res.status(200).json({
             status: "success",
@@ -295,7 +361,10 @@ module.exports = {
     updateUser,
     deleteUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    verifyRegistrationOtp,
+    verifyLoginOtp,
+    verifyFPOtp,
 };
 
 

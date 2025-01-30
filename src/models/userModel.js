@@ -1,6 +1,7 @@
 // const { required } = require("joi");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+// const { boolean } = require("joi");
 
 const newUserSchema = new mongoose.Schema({
     userName: {
@@ -25,20 +26,12 @@ const newUserSchema = new mongoose.Schema({
         min: 18,
         max: 100
     },
-    resetPasswordToken: String,
-    resetPasswordTokenExpire: Date,
-    otp:{type: String},
-    otpExpire:{type: Date},
     isVerified: {
         type: Boolean,
         default: false
     },
-    loginOtp: {type: String},
-    isLoginVerified:{
-        type: Boolean,
-        default: false
-    },
-    loginOtpExpire:{type: Date},
+    resetPasswordToken: String,
+    resetPasswordTokenExpire: Date,
 });
 
 newUserSchema.pre("save", async function (next) {
